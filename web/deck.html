@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Guild Protocol — deck</title>
+<link rel="stylesheet" href="./style.css">
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  body { background: var(--ink); }
+
+  .slide {
+    position: fixed; inset: 0;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    padding: 7vh 8vw 12vh;
+  }
+  .slide.on { display: flex; }
+
+  .kicker {
+    font-family: var(--mono); font-size: clamp(11px, 1.1vw, 14px);
+    letter-spacing: .28em; text-transform: uppercase; color: var(--gold);
+    margin-bottom: 28px;
+  }
+
+  h1 {
+    font-size: clamp(34px, 5.6vw, 82px);
+    font-weight: 300; line-height: 1.03; letter-spacing: -.025em;
+    margin: 0 0 26px; max-width: 22ch;
+  }
+  h1 em { font-style: normal; color: var(--gold); }
+
+  .sub {
+    font-size: clamp(16px, 1.7vw, 26px); line-height: 1.5;
+    color: var(--muted); max-width: 44ch;
+  }
+  .sub b { color: var(--bone); font-weight: 500; }
+
+  .big {
+    font-family: var(--mono); font-size: clamp(60px, 12vw, 180px);
+    font-weight: 300; line-height: .95; letter-spacing: -.04em;
+    font-variant-numeric: tabular-nums; margin: 0;
+  }
+
+  ul.plain { list-style: none; padding: 0; margin: 0; }
+  ul.plain li {
+    font-size: clamp(16px, 2vw, 30px); line-height: 1.45;
+    padding: 14px 0; border-bottom: 1px solid var(--line);
+    display: flex; gap: 24px; align-items: baseline;
+  }
+  ul.plain li:last-child { border-bottom: 0; }
+  ul.plain .tag {
+    font-family: var(--mono); font-size: .55em; letter-spacing: .16em;
+    color: var(--gold); min-width: 5ch;
+  }
+  ul.plain .dim2 { color: var(--muted); font-size: .78em; }
+
+  table.truth { border-collapse: collapse; width: 100%; }
+  table.truth td {
+    padding: 10px 0; border-bottom: 1px solid var(--line);
+    font-size: clamp(12px, 1.25vw, 18px); vertical-align: top;
+  }
+  table.truth td:first-child { color: var(--muted); width: 38%; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 5vw; }
+
+  .footer {
+    position: fixed; left: 8vw; right: 8vw; bottom: 4vh;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .dots { display: flex; gap: 6px; }
+  .dots i { width: 18px; height: 2px; background: #2a3038; display: block; }
+  .dots i.on { background: var(--gold); }
+
+  #notes {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    background: #080a0d; border-top: 1px solid var(--line);
+    padding: 18px 8vw 20px; font-size: 14px; line-height: 1.6;
+    color: var(--muted); display: none; max-height: 30vh; overflow-y: auto;
+  }
+  #notes.on { display: block; }
+  #notes b { color: var(--gold); font-family: var(--mono); font-size: 11px;
+             letter-spacing: .18em; text-transform: uppercase; display: block; margin-bottom: 6px; }
+
+  @media print {
+    .slide { position: static; display: flex !important; page-break-after: always; height: 100vh; }
+    .footer, #notes { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<section class="slide on" data-notes="Do not introduce yourself for two minutes. Say the one sentence, then move. The room has 60 minutes and 200 people; the first 30 seconds set whether they tap or listen.">
+  <div class="kicker">ETH Zurich · Digital Assets Forum</div>
+  <h1>The Guild <em>Protocol</em></h1>
+  <p class="sub">Sixty minutes, two hundred people, ten protocols — and a route <b>this room</b> chooses.</p>
+</section>
+
+<section class="slide" data-notes="This is the only sentence that has to land. Say it, then prove it on screen with a live signature whose recovered address appears and whose balance does not move. Everything else in the hour is a variation on this.">
+  <div class="kicker">The one thing</div>
+  <h1>A signature is not a transaction.</h1>
+  <p class="sub">And you should know what yours authorises.</p>
+</section>
+
+<section class="slide" data-notes="Explain the split honestly: 200 individual wallets is a five-hour onboarding queue. 25 guilds is one wallet per table of eight, and the arguing is the point. Roles are assigned, not volunteered — Delegate, Scribe, Sceptic, Zeitgeist.">
+  <div class="kicker">How 200 people fit in one hour</div>
+  <p class="big">200<span style="color:var(--muted)"> → </span>25<span style="color:var(--muted)"> → </span>1</p>
+  <p class="sub" style="margin-top:32px">Two hundred people. Twenty-five guilds of eight. <b>One wallet per table.</b></p>
+</section>
+
+<section class="slide" data-notes="Do not read all ten. Read the five tiers and let them see the shape: sign, claim, swap, govern, prove. Tell them three are guaranteed, two to three are voted, the rest are take-home.">
+  <div class="kicker">The map</div>
+  <ul class="plain">
+    <li><span class="tag">I</span> Sign <span class="dim2">— EIP-191 / EIP-712</span></li>
+    <li><span class="tag">II</span> Claim <span class="dim2">— ERC-20, merkle, ERC-721, ENS</span></li>
+    <li><span class="tag">III</span> Exchange <span class="dim2">— AMM, lending, bridging, governance</span></li>
+    <li><span class="tag">IV</span> Abstract <span class="dim2">— ERC-4337, paymasters</span></li>
+    <li><span class="tag">V</span> Intend <span class="dim2">— intents, solvers, zk</span></li>
+  </ul>
+</section>
+
+<section class="slide" data-notes="Live. Sign on stage. Show the recovered address, then show the balance unchanged. This is 'I do' — the room does nothing yet, which is deliberate: they watch the mechanic before they are asked to perform it.">
+  <div class="kicker">Encounter 01 · Tier I</div>
+  <h1>Sign. <em>Nothing moves.</em></h1>
+  <p class="sub">The contract recovers your address from 65 bytes and emits an event. Your balance is untouched. <b>Authorisation is data, not payment.</b></p>
+</section>
+
+<section class="slide" data-notes="The root is 32 bytes. The list is 45 addresses and it lives off-chain. Ask the room: who pays the gas to claim? The claimant does — and that is a design decision with a victim, which is why production airdrops use claim contracts and sponsors.">
+  <div class="kicker">Encounter 02 · Tier I</div>
+  <h1>A root, not a list.</h1>
+  <p class="sub">45 allocations compressed into 32 bytes. Everyone can prove they belong. <b>Nobody can see who else does.</b></p>
+</section>
+
+<section class="slide" data-notes="Poll 1. Twenty-five delegates sign; the console submits all of it as one transaction. While the batch lands, say: a signature is not a transaction — and here is a counterexample this room just produced, 25 times.">
+  <div class="kicker">The room chooses</div>
+  <h1>One transaction.<br><em>Twenty-five signatures.</em></h1>
+  <p class="sub">Signing costs nothing and sends nothing. The room's ballots wait in a queue until they are batched. <b>The relayer is a convenience, not an authority.</b></p>
+</section>
+
+<section class="slide" data-notes="50,000 of each, seeded a week ago so it cannot run dry on stage. Twenty-five swaps of 150 tokens takes the price from 1.0000 to 0.8655. Ask them to predict the direction before the first trade — prediction is what makes it stick.">
+  <div class="kicker">Encounter 05 · Tier III</div>
+  <h1>50,000 Gold.<br>50,000 Silver.<br><em>Break it.</em></h1>
+  <p class="sub">Twenty-five swaps take the price from <b>1.0000</b> to <b>0.8655</b>. The room is the market maker's counterparty.</p>
+</section>
+
+<section class="slide" data-notes="Run the same room twice: one guild one vote, then token-weighted. One address with 100 LOOT beats twenty-four with 1 LOOT each. Then say the sentence: weighting is a choice, not a law — and naive balance reads are a flash loan away from being someone else's choice.">
+  <div class="kicker">Encounter 08 · Tier III</div>
+  <h1>One whale.<br><em>Twenty-four guilds.</em></h1>
+  <p class="sub">Same room, two rules, two outcomes. <b>Weighting is a choice, not a law.</b></p>
+</section>
+
+<section class="slide" data-notes="Initiate the deposit early, check it late. If it has not arrived, that is the segment. The lesson is not 'bridges are slow' — it is that a bridge is a message with a delay and a trust assumption about who relays it.">
+  <div class="kicker">Encounter 07 · Tier III</div>
+  <h1>The bridge that<br><em>arrives late.</em></h1>
+  <p class="sub">A bridge is not a swap. It is a message, a delay, and a trust assumption about <b>who relays it</b>.</p>
+</section>
+
+<section class="slide" data-notes="Mint the badge on stage and decode tokenURI in the browser. The image comes out of the contract. No IPFS, no pinning, no link that can rot. Then the sting: the last action of the hour is the most advanced one, and it cost them nothing.">
+  <div class="kicker">Encounter 03 / 09 · Tier II–IV</div>
+  <h1>The art is<br><em>inside the contract.</em></h1>
+  <p class="sub">No IPFS hash. No hosting. No link that can rot. And it is claimed gaslessly through a smart account — <b>the most advanced thing you did today, with the least friction.</b></p>
+</section>
+
+<section class="slide" data-notes="The criterion: a frontier protocol earns its place only if it changes who signs, who pays, or what can be proven. Intents change who signs — you sign an outcome, a solver signs the transaction. That inverts minute one, which is why it closes the hour.">
+  <div class="kicker">Encounter 10 · Tier V</div>
+  <h1>What's coming: you sign an <em>outcome</em>.</h1>
+  <p class="sub">A frontier protocol earns its place only if it changes <b>who signs</b>, <b>who pays</b>, or <b>what can be proven</b>. Intents change who signs. zkVM changes what can be proven. Restaking changes who secures.</p>
+</section>
+
+<section class="slide" data-notes="The slide the engineers will remember. Say each correction out loud once, at the moment it appears, and never apologise for it. A lab that hides this is teaching a wrong model of the system, confidently.">
+  <div class="kicker">What testnet lied to you about</div>
+  <table class="truth">
+    <tr><td>Gas was free</td><td>Gas is a market and a UX tax</td></tr>
+    <tr><td>Nothing front-ran you</td><td>Searchers read your transaction before you sent it</td></tr>
+    <tr><td>Price impact was small</td><td>Real pools are thin relative to real size</td></tr>
+    <tr><td>Liquidation was a button</td><td>There are a thousand keepers and they are faster</td></tr>
+    <tr><td>Tokens were free</td><td>Value changes the people holding them — and your legal posture</td></tr>
+  </table>
+</section>
+
+<section class="slide" data-notes="Retrieval, not summary. Ask all three, hands up, before the post-instrument. The answers are in their mouths, not on the slide.">
+  <div class="kicker">Three questions</div>
+  <ul class="plain">
+    <li><span class="tag">01</span> What did your signature at minute 2 authorise?</li>
+    <li><span class="tag">02</span> Who paid for your badge?</li>
+    <li><span class="tag">03</span> When your guild moved the price, who moved it?</li>
+  </ul>
+</section>
+
+<section class="slide" data-notes="Point at the repo, not at yourself. Contracts verified, tests published, load-sim reports timestamped. Then stop talking — the hour is over and the room is already standing up.">
+  <div class="kicker">Afterwards</div>
+  <h1>Everything here<br>is <em>reproducible.</em></h1>
+  <p class="sub">Five contracts, 37 tests, one load simulation you can re-run. <b>github.com/&lt;you&gt;/blockchain-lab-ethz</b></p>
+</section>
+
+<div class="footer">
+  <div class="dots" id="dots"></div>
+  <div id="counter">01 / 15</div>
+</div>
+
+<div id="notes"><b>Speaker notes — press N to hide</b><span id="noteText"></span></div>
+
+<script>
+const slides = [...document.querySelectorAll(".slide")];
+const dots = document.getElementById("dots");
+let i = 0;
+
+dots.innerHTML = slides.map(() => "<i></i>").join("");
+const dotEls = [...dots.children];
+
+function show(n) {
+  i = Math.max(0, Math.min(slides.length - 1, n));
+  slides.forEach((s, k) => s.classList.toggle("on", k === i));
+  dotEls.forEach((d, k) => d.classList.toggle("on", k === i));
+  document.getElementById("counter").textContent =
+    String(i + 1).padStart(2, "0") + " / " + String(slides.length).padStart(2, "0");
+  document.getElementById("noteText").textContent = slides[i].dataset.notes || "";
+  history.replaceState(null, "", "#" + (i + 1));
+}
+
+addEventListener("keydown", (e) => {
+  if ([" ", "ArrowRight", "PageDown", "Enter"].includes(e.key)) { e.preventDefault(); show(i + 1); }
+  if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); show(i - 1); }
+  if (e.key.toLowerCase() === "n") document.getElementById("notes").classList.toggle("on");
+  if (e.key === "Home") show(0);
+  if (e.key === "End") show(slides.length - 1);
+});
+
+addEventListener("click", (e) => {
+  if (e.target.closest("#notes")) return;
+  show(e.clientX < innerWidth * 0.25 ? i - 1 : i + 1);
+});
+
+show(Number(location.hash.slice(1) || 1) - 1);
+</script>
+</body>
+</html>

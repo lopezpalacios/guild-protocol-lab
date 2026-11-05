@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guild Protocol — Operator console</title>
+<link rel="stylesheet" href="./style.css">
+<style>
+  body { font-size: 14px; }
+  .wrap { max-width: 1200px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 900px) { .row { grid-template-columns: 1fr; } }
+  .tally { font-family: var(--mono); font-size: 30px; font-variant-numeric: tabular-nums; }
+  .opt { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .opt:last-child { border-bottom: 0; }
+  .pill { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; padding: 3px 8px; border: 1px solid var(--line); color: var(--muted); }
+  .pill.live { border-color: var(--ok); color: var(--ok); }
+  .pill.closed { border-color: var(--warn); color: var(--warn); }
+  table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  th { text-align: left; color: var(--muted); font-weight: 400; letter-spacing: .1em; text-transform: uppercase; font-size: 10px; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  td { padding: 7px 6px; border-bottom: 1px solid #1a1f26; }
+  .scroll { max-height: 280px; overflow-y: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">The Guild Protocol</div>
+    <div class="chain">OPERATOR · <b id="block">—</b></div>
+  </header>
+
+  <div class="row" style="margin-bottom:20px">
+    <div>
+      <h1 style="font-size:26px">Console</h1>
+      <p class="dim small" style="margin-top:0">
+        Signatures queue here. Submit sends all of them as <b>one</b> transaction.
+      </p>
+    </div>
+    <div>
+      <p class="small dim" style="margin:0 0 6px">Operator token</p>
+      <input id="token" placeholder="printed by server/lab.py at startup">
+      <div class="actions"><button id="save">Save token</button></div>
+    </div>
+  </div>
+
+  <div class="row" id="polls"></div>
+
+  <div class="card" style="margin-top:20px">
+    <h2>Queued ballots</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Signer</th><th>Choice</th><th>Signature</th><th>State</th></tr></thead>
+      <tbody id="ballots"></tbody>
+    </table></div>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <h2>Last action</h2>
+    <div class="status" id="log">idle</div>
+  </div>
+
+  <p class="small dim" style="margin-top:20px">
+    Fallback for a broken phone, not a substitute for the demo:
+    <code>OPERATOR_KEY=0x… ./scripts/claim-for-all.sh data/attendees.txt</code>
+  </p>
+
+</div>
+
+<script type="module">
+const OPTIONS = {
+  poll1: ["Break the AMM", "Govern something real"],
+  poll2: ["Bridge, asynchronously", "What is coming"],
+};
+
+let TOKEN = localStorage.getItem("guild.token") || "";
+document.getElementById("token").value = TOKEN;
+
+document.getElementById("save").onclick = () => {
+  TOKEN = document.getElementById("token").value.trim();
+  localStorage.setItem("guild.token", TOKEN);
+  setLog("token saved", "ok");
+};
+
+const setLog = (msg, cls = "") => {
+  const el = document.getElementById("log");
+  el.className = "status " + cls;
+  el.textContent = msg;
+};
+
+let lastKey = null;
+
+function render(state) {
+  document.getElementById("block").textContent = "BLOCK " + state.block;
+
+  // Re-render when the chain moves *or* when the queue changes: a ballot arriving does not
+  // produce a block, and a stale "Submit 3 queued" button is a lie.
+  const key = `${state.block}:${state.queued.queued}:${state.queued.submitted}`;
+  const host = document.getElementById("polls");
+  if (key !== lastKey) {
+    host.innerHTML = Object.entries(state.polls).map(([key, p]) => {
+      const labels = OPTIONS[key] || ["A", "B"];
+      const total = p.tally.reduce((a, b) => a + b, 0) || 0;
+      const now = Math.floor(Date.now() / 1000);
+      const live = p.exists && now >= p.opensAt && now <= p.closesAt;
+      const cls = live ? "live" : (p.exists ? "closed" : "");
+      const word = live ? "open" : (p.finalized ? "finalized" : "closed");
+
+      return `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h2 style="margin:0">${key} · ${p.label || ""}</h2>
+          <span class="pill ${cls}">${word}</span>
+        </div>
+        ${p.tally.map((c, i) => `
+          <div class="opt"><span>${labels[i] || "?"}</span><span class="tally">${c}</span></div>
+        `).join("")}
+        <div class="opt"><span class="dim">total</span><span class="dim">${total}</span></div>
+        <div class="actions">
+          <button data-submit="${p.id}">Submit ${state.queued.queued} queued as one tx</button>
+        </div>
+      </div>`;
+    }).join("");
+
+    host.querySelectorAll("[data-submit]").forEach((b) => {
+      b.onclick = () => doSubmit(b.dataset.submit, b);
+    });
+
+    if (lastKey === null || lastKey.split(":")[1] !== String(state.queued.queued)) {
+      loadBallots();
+    }
+    lastKey = key;
+  }
+}
+
+async function doSubmit(pollId, btn) {
+  if (!TOKEN) return setLog("paste the operator token first", "warn");
+  btn.disabled = true;
+  setLog("pre-flighting every ballot, then sending one transaction…", "gold");
+  try {
+    const r = await fetch("/api/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Operator-Token": TOKEN },
+      body: JSON.stringify({ pollId }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "submit failed");
+
+    const rej = j.rejected.length
+      ? ` · rejected ${j.rejected.length}: ` + j.rejected.map((x) => `${x.signer.slice(0, 8)}… ${x.reason}`).join(", ")
+      : "";
+    setLog(
+      `submitted ${j.submitted} ballots in one transaction in ${j.seconds}s${rej} · ${j.txHash}`,
+      j.rejected.length ? "gold" : "ok"
+    );
+    loadBallots();
+  } catch (e) {
+    setLog("submit failed: " + e.message, "warn");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadBallots() {
+  try {
+    const r = await fetch("/api/ballots");
+    const j = await r.json();
+    document.getElementById("ballots").innerHTML = j.ballots.length
+      ? j.ballots.map((b) => `
+          <tr>
+            <td>${b.signer.slice(0, 10)}…${b.signer.slice(-4)}</td>
+            <td>${b.choice}</td>
+            <td>${b.signature}</td>
+            <td>${b.submitted ? '<span style="color:var(--ok)">on chain</span>' : '<span style="color:var(--gold)">queued</span>'}</td>
+          </tr>`).join("")
+      : `<tr><td colspan="4" class="dim">nothing queued yet</td></tr>`;
+  } catch (e) {
+    setLog("cannot read ballots: " + e.message, "warn");
+  }
+}
+
+// SSE with a polling fallback: a projector that stops updating is worse than a slow one.
+function connect() {
+  try {
+    const es = new EventSource("/api/events");
+    es.onmessage = (ev) => render(JSON.parse(ev.data));
+    es.onerror = () => { es.close(); setTimeout(connect, 3000); };
+  } catch {
+    setInterval(async () => render(await (await fetch("/api/state")).json()), 3000);
+  }
+}
+
+connect();
+loadBallots();
+</script>
+</body>
+</html>

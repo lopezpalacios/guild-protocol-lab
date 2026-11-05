@@ -1,0 +1,225 @@
+/* THE GUILD PROTOCOL — lab UI
+   No framework, no build step. One file, loaded by every page.
+   Type sizes are set for a projector 25m away, not for a laptop. */
+
+:root {
+  --ink: #0e1116;
+  --ink-2: #141920;
+  --bone: #f2f0ea;
+  --gold: #c8a24a;
+  --muted: #8a8577;
+  --line: #23282f;
+  --ok: #6fae7b;
+  --warn: #d4735a;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--ink);
+  color: var(--bone);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 80px; }
+
+/* ---------- header ---------- */
+
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+
+.brand {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: .28em;
+  color: var(--gold);
+  text-transform: uppercase;
+}
+
+.chain {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .1em;
+  color: var(--muted);
+}
+.chain b { color: var(--bone); font-weight: 500; }
+
+/* ---------- type ---------- */
+
+h1 {
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 300;
+  letter-spacing: -.02em;
+  margin: 0 0 8px;
+}
+
+h2 {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 400;
+  margin: 0 0 18px;
+}
+
+p { line-height: 1.6; color: var(--bone); }
+.dim { color: var(--muted); }
+.small { font-size: 13px; }
+
+/* ---------- figures ---------- */
+
+.figure {
+  font-family: var(--mono);
+  font-size: clamp(44px, 9vw, 96px);
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.figure.sm { font-size: clamp(28px, 4.5vw, 48px); }
+
+.unit {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: .18em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+
+/* ---------- layout ---------- */
+
+.grid { display: grid; gap: 20px; }
+.grid.two { grid-template-columns: 1fr 1fr; }
+.grid.side { grid-template-columns: 2fr 1fr; }
+@media (max-width: 820px) {
+  .grid.two, .grid.side { grid-template-columns: 1fr; }
+}
+
+.card {
+  border: 1px solid var(--line);
+  background: var(--ink-2);
+  padding: 22px;
+}
+
+.card.gold { border-color: rgba(200, 162, 74, .45); }
+
+/* ---------- ballot ---------- */
+
+.option { margin: 0 0 18px; }
+
+.option-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.option-name { font-size: 17px; }
+
+.option-count {
+  font-family: var(--mono);
+  font-size: clamp(22px, 3vw, 32px);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  height: 10px;
+  background: #1c2229;
+  position: relative;
+  overflow: hidden;
+}
+.bar > i {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  transition: width .5s ease;
+}
+.option.losing .bar > i { background: #4a4335; }
+
+/* ---------- buttons ---------- */
+
+button, .btn {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 14px 22px;
+  background: transparent;
+  color: var(--bone);
+  border: 1px solid var(--gold);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background .15s, color .15s;
+}
+button:hover:not(:disabled), .btn:hover { background: var(--gold); color: var(--ink); }
+button:disabled { opacity: .35; cursor: not-allowed; border-color: var(--line); }
+button.ghost { border-color: var(--line); color: var(--muted); }
+button.ghost:hover:not(:disabled) { background: var(--line); color: var(--bone); }
+
+.actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+
+/* ---------- status ---------- */
+
+.status {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: .06em;
+  padding: 12px 14px;
+  border-left: 2px solid var(--line);
+  background: rgba(255,255,255,.02);
+  margin: 16px 0;
+  word-break: break-all;
+  line-height: 1.5;
+}
+.status.ok { border-color: var(--ok); color: var(--ok); }
+.status.warn { border-color: var(--warn); color: var(--warn); }
+.status.gold { border-color: var(--gold); color: var(--gold); }
+
+/* ---------- misc ---------- */
+
+code, .mono { font-family: var(--mono); font-size: 13px; }
+
+input, textarea {
+  width: 100%;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  color: var(--bone);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 12px;
+}
+input:focus, textarea:focus { outline: 1px solid var(--gold); }
+
+hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+
+.kv { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.kv:last-child { border-bottom: 0; }
+.kv span:first-child { color: var(--muted); font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+.kv span:last-child { font-family: var(--mono); font-size: 14px; }
+
+.hidden { display: none !important; }
+
+/* ---------- print ---------- */
+
+@media print {
+  body { background: #fff; color: #000; }
+  .no-print { display: none !important; }
+}

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guild Protocol — Print cards</title>
+<link rel="stylesheet" href="./style.css">
+<style>
+  .sheet { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10mm; margin-top: 24px; }
+
+  .gcard {
+    border: 1px solid #000;
+    padding: 6mm;
+    background: #fff;
+    color: #000;
+    font-family: var(--mono);
+    break-inside: avoid;
+    page-break-inside: avoid;
+    min-height: 74mm;
+  }
+  .gcard .no { font-size: 34pt; font-weight: 300; line-height: 1; letter-spacing: -.03em; }
+  .gcard .role { font-size: 7pt; line-height: 1.55; margin-top: 4mm; }
+  .gcard .role b { display: block; font-size: 6pt; letter-spacing: .16em; text-transform: uppercase; color: #777; }
+  .gcard .qr { margin-top: 3mm; }
+  .gcard .qr svg { width: 26mm; height: 26mm; display: block; }
+  .gcard .url { font-size: 5.5pt; word-break: break-all; color: #555; margin-top: 2mm; }
+
+  @media print {
+    .wrap { max-width: none; padding: 0; }
+    .sheet { grid-template-columns: repeat(3, 1fr); gap: 6mm; }
+    header, .no-print, h1 { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="no-print">
+    <div class="brand">The Guild Protocol</div>
+    <div class="chain">PRINT · 25 CARDS</div>
+  </header>
+
+  <h1 class="no-print">Guild cards</h1>
+  <p class="dim small no-print">
+    Paste <code>data/guilds.csv</code> below. Nothing is uploaded — the QR codes are generated in this
+    browser. Print, cut, place one per table. Each card carries a live private key: treat the printed
+    sheet like cash until it is on the tables.
+  </p>
+
+  <div class="no-print">
+    <p class="small dim" style="margin-bottom:6px">Base URL (where the site is served)</p>
+    <input id="base" />
+    <p class="small dim" style="margin:16px 0 6px">guilds.csv — <code>id,address,key</code></p>
+    <textarea id="csv" rows="6" placeholder="1,0xabc…,0xdef…"></textarea>
+    <div class="actions">
+      <button id="render">Render cards</button>
+      <button id="print" class="ghost">Print</button>
+    </div>
+    <div class="status" id="status">waiting for input</div>
+  </div>
+
+  <div class="sheet" id="sheet"></div>
+
+</div>
+
+<script type="module">
+import qrcode from "https://esm.sh/qrcode-generator@1.4.4";
+
+document.getElementById("base").value = location.origin + location.pathname.replace(/cards\.html$/, "");
+
+const ROLES = [
+  ["Delegate", "holds the phone. the only person who signs."],
+  ["Scribe", "writes the predictions down. your proof of participation."],
+  ["Sceptic", "must raise one objection before every vote."],
+  ["Zeitgeist", "reports the gut feeling. may say 'this looks like a scam'."],
+];
+
+document.getElementById("render").onclick = () => {
+  const base = document.getElementById("base").value.trim();
+  const rows = document.getElementById("csv").value
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => l.split(","));
+
+  if (!rows.length) {
+    document.getElementById("status").className = "status warn";
+    document.getElementById("status").textContent = "no rows found";
+    return;
+  }
+
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = rows
+    .map(([id, addr, key]) => {
+      const url = `${base}g.html#k=${key}&g=${id}`;
+      let qr = "";
+      try {
+        const q = qrcode(0, "M");
+        q.addData(url);
+        q.make();
+        qr = q.createSvgTag({ cellSize: 3, margin: 0, scalable: true });
+      } catch (e) {
+        qr = "<em style='font-size:6pt'>QR failed</em>";
+      }
+      return `
+        <div class="gcard">
+          <div class="no">G${String(id).padStart(2, "0")}</div>
+          <div class="role">
+            ${ROLES.map(([r, d]) => `<b>${r}</b>${d}`).join("")}
+          </div>
+          <div class="qr">${qr}</div>
+          <div class="url">${url.replace(/^https?:\/\//, "").slice(0, 88)}…</div>
+        </div>`;
+    })
+    .join("");
+
+  document.getElementById("status").className = "status ok";
+  document.getElementById("status").textContent = `${rows.length} cards rendered. print, then cut.`;
+};
+
+document.getElementById("print").onclick = () => window.print();
+</script>
+</body>
+</html>

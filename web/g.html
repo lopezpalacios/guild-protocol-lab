@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guild Protocol — Guild</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">The Guild Protocol</div>
+    <div class="chain">GUILD <b id="guildNo">—</b></div>
+  </header>
+
+  <h1 id="title">Your guild wallet</h1>
+  <p class="dim small" id="addr">—</p>
+
+  <div class="grid two" style="margin:24px 0">
+    <div class="card">
+      <h2>You hold</h2>
+      <div class="kv"><span>ETH (gas)</span><span id="eth">—</span></div>
+      <div class="kv"><span>LOOT</span><span id="loot">—</span></div>
+      <div class="kv"><span>Voted</span><span id="voted">—</span></div>
+    </div>
+
+    <div class="card gold">
+      <h2>Loot claim</h2>
+      <p class="small dim" style="margin-top:0">One claim per address. The tree is public; the root is on-chain.</p>
+      <button id="claimBtn">Claim 1,000 LOOT</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <h2>Step 1 — Sign your ballot</h2>
+    <p class="small dim" style="margin-top:0">
+      Pick an option, then sign. <b>Signing sends nothing to the chain.</b> Your vote is not counted
+      until step 2, and the counter below will prove it.
+    </p>
+
+    <div class="actions" id="choices" style="margin-bottom:8px"></div>
+
+    <div class="actions">
+      <button id="signBtn" disabled>Sign ballot</button>
+      <button id="submitBtn" class="ghost" disabled>Or send it yourself</button>
+    </div>
+
+    <div class="status" id="signStatus">waiting for a choice…</div>
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <div class="status" id="log">ready</div>
+  </div>
+
+</div>
+
+<script type="module">
+import {
+  CONFIG, CHAIN, publicClient, ABI, fmt, short,
+} from "./lib.js";
+import { createWalletClient, http, privateKeyToAccount } from "https://esm.sh/viem@2.21.45";
+
+const OPTIONS = {
+  [CONFIG.poll1]: ["Break the AMM", "Govern something real"],
+  [CONFIG.poll2]: ["Bridge, asynchronously", "What is coming"],
+};
+
+const POLL = new URLSearchParams(location.search).get("poll") === "2"
+  ? CONFIG.poll2
+  : CONFIG.poll1;
+
+const log = (msg, cls = "") => {
+  const el = document.getElementById("log");
+  el.className = "status " + cls;
+  el.textContent = msg;
+};
+
+// ---------------------------------------------------------------- wallet
+
+const params = new URLSearchParams(location.hash.slice(1));
+const pk = params.get("k");
+const guildId = Number(params.get("g") || 0);
+
+if (!pk || !/^0x[0-9a-fA-F]{64}$/.test(pk)) {
+  document.getElementById("title").textContent = "No wallet in this link";
+  document.getElementById("signStatus").className = "status warn";
+  document.getElementById("signStatus").textContent =
+    "This page needs a guild link of the form g.html#k=0x…&g=7 — scan the QR on your table card.";
+  throw new Error("no key");
+}
+
+const account = privateKeyToAccount(pk);
+const wallet = createWalletClient({ account, chain: CHAIN, transport: http(CONFIG.rpcUrl) });
+
+document.getElementById("guildNo").textContent = String(guildId).padStart(2, "0");
+document.getElementById("title").textContent = `Guild ${String(guildId).padStart(2, "0")}`;
+document.getElementById("addr").textContent =
+  `address ${account.address} · key lives in this link, so do not screenshot it`;
+
+// ---------------------------------------------------------------- state
+
+let choice = null;
+let signed = null;
+
+async function refresh() {
+  const [eth, loot, voted] = await Promise.all([
+    publicClient.getBalance({ address: account.address }),
+    publicClient.readContract({ address: CONFIG.loot, abi: ABI.loot, functionName: "balanceOf", args: [account.address] }),
+    publicClient.readContract({ address: CONFIG.ballot, abi: ABI.ballot, functionName: "hasVoted", args: [POLL, account.address] }),
+  ]);
+  document.getElementById("eth").textContent = fmt(eth, 4) + " ETH";
+  document.getElementById("loot").textContent = fmt(loot, 0) + " LOOT";
+  document.getElementById("voted").textContent = voted ? "yes" : "not yet";
+}
+
+// ---------------------------------------------------------------- choices
+
+const labels = OPTIONS[POLL] || ["Option A", "Option B"];
+document.getElementById("choices").innerHTML = labels
+  .map((l, i) => `<button class="ghost" data-choice="${i}">${l}</button>`)
+  .join("");
+
+document.querySelectorAll("[data-choice]").forEach((b) => {
+  b.onclick = () => {
+    choice = Number(b.dataset.choice);
+    signed = null;
+    document.querySelectorAll("[data-choice]").forEach((x) => x.classList.add("ghost"));
+    b.classList.remove("ghost");
+    document.getElementById("signBtn").disabled = false;
+    document.getElementById("submitBtn").disabled = true;
+    const s = document.getElementById("signStatus");
+    s.className = "status";
+    s.textContent = `chose: ${labels[choice]} — now sign`;
+  };
+});
+
+// ---------------------------------------------------------------- sign
+
+document.getElementById("signBtn").onclick = async () => {
+  try {
+    const nonce = await publicClient.readContract({
+      address: CONFIG.ballot, abi: ABI.ballot, functionName: "nonce", args: [account.address],
+    });
+
+    signed = await account.signTypedData({
+      domain: {
+        name: "GuildBallot",
+        version: "1",
+        chainId: CONFIG.chainId,
+        verifyingContract: CONFIG.ballot,
+      },
+      types: {
+        Ballot: [
+          { name: "pollId", type: "bytes32" },
+          { name: "choice", type: "uint8" },
+          { name: "nonce", type: "uint256" },
+        ],
+      },
+      primaryType: "Ballot",
+      message: { pollId: POLL, choice, nonce },
+    });
+
+    // Hand the signature to the room's ballot box. Still no transaction from this phone.
+    let queued = "";
+    try {
+      const r = await fetch("/api/ballot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pollId: POLL, signer: account.address, choice, signature: signed }),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        queued = ` queued for the room's batch — ${j.queued} waiting.`;
+      }
+    } catch {
+      queued = " (offline: submit it yourself below)";
+    }
+
+    const s = document.getElementById("signStatus");
+    s.className = "status gold";
+    s.textContent =
+      `signed. no transaction was sent. nothing on chain changed. vote is still NOT counted.` +
+      queued + ` signature: ${signed.slice(0, 34)}…`;
+
+    document.getElementById("submitBtn").disabled = false;
+    log("signature produced locally. gas spent so far: zero.", "ok");
+  } catch (e) {
+    log("sign failed: " + (e.shortMessage || e.message), "warn");
+  }
+};
+
+// ---------------------------------------------------------------- submit
+
+document.getElementById("submitBtn").onclick = async () => {
+  if (signed === null) return;
+  try {
+    log("sending one transaction…");
+    const hash = await wallet.writeContract({
+      address: CONFIG.ballot,
+      abi: ABI.ballot,
+      functionName: "castVotes",
+      args: [POLL, [account.address], [choice], [signed]],
+    });
+    log(`submitted ${hash.slice(0, 18)}… — waiting for inclusion`, "gold");
+
+    const rc = await publicClient.waitForTransactionReceipt({ hash });
+    log(
+      `included in block ${rc.blockNumber}. vote counted. this is the difference between a signature and a transaction.`,
+      "ok"
+    );
+    document.getElementById("signStatus").className = "status ok";
+    document.getElementById("signStatus").textContent = "counted on chain.";
+    document.getElementById("submitBtn").disabled = true;
+    document.getElementById("signBtn").disabled = true;
+    refresh();
+  } catch (e) {
+    log("submit failed: " + (e.shortMessage || e.message), "warn");
+  }
+};
+
+// ---------------------------------------------------------------- claim
+
+document.getElementById("claimBtn").onclick = async () => {
+  try {
+    log("looking for your address in the merkle tree…");
+    const merkle = await (await fetch("./merkle.json", { cache: "no-store" })).json();
+    const entry = merkle.claims[account.address];
+    if (!entry) {
+      log("your address is not in the tree. ask a helper for a spare card.", "warn");
+      return;
+    }
+
+    const hash = await wallet.writeContract({
+      address: CONFIG.distributor,
+      abi: ABI.distributor,
+      functionName: "claim",
+      args: [BigInt(entry.index), account.address, BigInt(entry.amount), entry.proof],
+    });
+    log(`claim sent ${hash.slice(0, 18)}…`, "gold");
+    await publicClient.waitForTransactionReceipt({ hash });
+    log("loot received. the contract proved you belonged, without ever storing the list.", "ok");
+    refresh();
+  } catch (e) {
+    log("claim failed: " + (e.shortMessage || e.message), "warn");
+  }
+};
+
+// ---------------------------------------------------------------- boot
+
+refresh();
+setInterval(refresh, 8000);
+log(`guild ${guildId} · ${short(account.address)} · poll ${POLL.slice(0, 10)}…`);
+</script>
+</body>
+</html>

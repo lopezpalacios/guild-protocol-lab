@@ -1,0 +1,18 @@
+# build outputs
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/lib/
+
+# secrets — regenerate with scripts/gen-participants.sh, never commit
+data/guild-keys.txt
+.env
+
+.DS_Store
+node_modules/
+
+# runtime audit trail — regenerated on every session
+data/ballots.jsonl
+
+# generated card sheet — contains live private keys
+data/guilds.csv

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guild Protocol</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">The Guild Protocol</div>
+    <div class="chain"><b id="chain">—</b></div>
+  </header>
+
+  <h1>ETH Zurich · Blockchain Lab</h1>
+  <p class="dim" style="max-width:60ch">
+    Sixty minutes, two hundred people, ten protocols, one route that this room chooses.
+    Pick the surface you need.
+  </p>
+
+  <div class="grid two" style="margin-top:32px">
+    <a class="card" href="./spectator.html" style="text-decoration:none">
+      <h2>Projector</h2>
+      <p class="mono" style="font-size:28px;margin:0">spectator.html</p>
+      <p class="small dim">Live tally, pool price, badges minted. No wallet needed.</p>
+    </a>
+
+    <a class="card" href="./g.html" style="text-decoration:none">
+      <h2>Guild</h2>
+      <p class="mono" style="font-size:28px;margin:0">g.html#k=…&amp;g=7</p>
+      <p class="small dim">Sign a ballot, submit it, claim loot. Opened from a table card.</p>
+    </a>
+
+    <a class="card" href="./claim.html" style="text-decoration:none">
+      <h2>Badge</h2>
+      <p class="mono" style="font-size:28px;margin:0">claim.html?g=7</p>
+      <p class="small dim">Mint the souvenir. The artwork lives in the contract.</p>
+    </a>
+
+    <a class="card" href="./admin.html" style="text-decoration:none">
+      <h2>Console</h2>
+      <p class="mono" style="font-size:28px;margin:0">admin.html</p>
+      <p class="small dim">Queued ballots, one-transaction submit, rejected ballots and why.</p>
+    </a>
+
+    <a class="card" href="./cards.html" style="text-decoration:none">
+      <h2>Print</h2>
+      <p class="mono" style="font-size:28px;margin:0">cards.html</p>
+      <p class="small dim">25 guild cards with QR codes. Generated in the browser, never uploaded.</p>
+    </a>
+
+    <a class="card" href="./deck.html" style="text-decoration:none">
+      <h2>Deck</h2>
+      <p class="mono" style="font-size:28px;margin:0">deck.html</p>
+      <p class="small dim">15 slides. Space to advance, N for speaker notes.</p>
+    </a>
+  </div>
+
+  <div class="status" id="status">reading chain…</div>
+
+  <hr>
+
+  <p class="small dim">
+    Testnet only. Every asset here is valueless and every key is disposable. Nothing on this page
+    should ever be used with real funds.
+  </p>
+
+</div>
+
+<script type="module">
+import { CONFIG, publicClient, ABI } from "./lib.js";
+
+document.getElementById("chain").textContent = `${CONFIG.chainName} · ${CONFIG.chainId}`;
+
+try {
+  const [nextId, price, block] = await Promise.all([
+    publicClient.readContract({ address: CONFIG.badge, abi: ABI.badge, functionName: "nextId" }),
+    publicClient.readContract({ address: CONFIG.pair, abi: ABI.pair, functionName: "spotPrice" }),
+    publicClient.getBlockNumber(),
+  ]);
+  const s = document.getElementById("status");
+  s.className = "status ok";
+  s.textContent =
+    `connected · block ${block} · badges ${nextId - 1n}/250 · GOLD/SILVER ${(Number(price) / 1e18).toFixed(4)}`;
+} catch (e) {
+  const s = document.getElementById("status");
+  s.className = "status warn";
+  s.textContent = "cannot reach the chain. Check config.js and the RPC. " + (e.shortMessage || e.message);
+}
+</script>
+</body>
+</html>

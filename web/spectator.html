@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guild Protocol — Live</title>
+<link rel="stylesheet" href="./style.css">
+<style>
+  @keyframes pulse { 0% { opacity: .25 } 50% { opacity: 1 } 100% { opacity: .25 } }
+  @keyframes bump { 0% { transform: translateY(6px); opacity: .3 } 100% { transform: none; opacity: 1 } }
+
+  .live-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ok); margin-right: 8px; animation: pulse 2s infinite;
+  }
+  .option-count.bump { animation: bump .35s ease; }
+  .leader { border-left: 2px solid var(--gold); padding-left: 14px; margin-left: -16px; }
+  .option { transition: border-color .3s; }
+  .queued-line { font-family: var(--mono); font-size: 12px; letter-spacing: .14em;
+                 text-transform: uppercase; color: var(--muted); margin-top: 18px; }
+  .queued-line b { color: var(--gold); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">The Guild Protocol</div>
+    <div class="chain"><span class="live-dot"></span>LIVE · <b id="chainName">—</b></div>
+  </header>
+
+  <div class="grid side">
+
+    <section>
+      <h2 id="pollLabel">POLL 1</h2>
+      <h1 id="pollQuestion" style="margin-bottom:28px">Which encounter next?</h1>
+      <div id="options"></div>
+
+      <div class="queued-line">
+        <b id="queued">0</b> signatures in the room's ballot box · <b id="submitted">0</b> already on chain
+      </div>
+
+      <div class="actions">
+        <a class="btn" href="./g.html">Guild login</a>
+        <a class="btn ghost" href="./claim.html">Claim badge</a>
+      </div>
+      <div class="status" id="status">connecting…</div>
+    </section>
+
+    <aside>
+      <div class="card gold" style="margin-bottom:20px">
+        <h2>Gold / Silver</h2>
+        <div class="figure sm" id="price">—</div>
+        <div class="unit">silver per gold</div>
+        <div class="kv" style="margin-top:18px"><span>Swaps</span><span id="swaps">—</span></div>
+        <div class="kv"><span>Pool GOLD</span><span id="res0">—</span></div>
+        <div class="kv"><span>Pool SILVER</span><span id="res1">—</span></div>
+      </div>
+
+      <div class="card">
+        <h2>Badges</h2>
+        <div class="figure sm" id="badges">—</div>
+        <div class="unit">of 250 minted</div>
+      </div>
+    </aside>
+
+  </div>
+
+</div>
+
+<script type="module">
+import { CONFIG, fmt, pollFromQuery } from "./lib.js";
+
+const OPTIONS = {
+  [CONFIG.poll1]: ["Break the AMM", "Govern something real"],
+  [CONFIG.poll2]: ["Bridge, asynchronously", "What is coming"],
+};
+
+const { label } = pollFromQuery();
+const want = new URLSearchParams(location.search).get("poll") === "2" ? "poll2" : "poll1";
+document.getElementById("pollLabel").textContent = label;
+document.getElementById("chainName").textContent = `${CONFIG.chainName} · ${CONFIG.chainId}`;
+
+const previous = new Map();
+
+function renderOptions(labels, tally) {
+  const max = tally.reduce((a, b) => (a > b ? a : b), 0);
+  const ties = tally.filter((t) => t === max).length;
+
+  document.getElementById("options").innerHTML = labels
+    .map((name, i) => {
+      const lead = tally[i] === max && max > 0 && ties === 1;
+      return `
+        <div class="option ${lead ? "leader" : ""}" data-i="${i}">
+          <div class="option-head">
+            <span class="option-name">${name}</span>
+            <span class="option-count" id="c${i}">${tally[i]}</span>
+          </div>
+          <div class="bar"><i style="width:${max ? (tally[i] / max) * 100 : 0}%"></i></div>
+        </div>`;
+    })
+    .join("");
+
+  tally.forEach((v, i) => {
+    if (previous.get(i) !== undefined && previous.get(i) !== v) {
+      const el = document.getElementById("c" + i);
+      if (el) {
+        el.classList.add("bump");
+        setTimeout(() => el.classList.remove("bump"), 400);
+      }
+    }
+    previous.set(i, v);
+  });
+}
+
+function render(s) {
+  const p = s.polls[want];
+  if (!p || p.error) throw new Error(p?.error || "poll missing");
+
+  renderOptions(OPTIONS[CONFIG.poll1] && want === "poll1"
+    ? OPTIONS[CONFIG.poll1]
+    : (OPTIONS[CONFIG.poll2] || ["A", "B"]), p.tally);
+
+  document.getElementById("price").textContent = (s.price / 1e18).toFixed(4);
+  document.getElementById("res0").textContent = fmt(BigInt(s.reserves[0]), 0);
+  document.getElementById("res1").textContent = fmt(BigInt(s.reserves[1]), 0);
+  document.getElementById("swaps").textContent = s.swaps;
+  document.getElementById("badges").textContent = s.badges;
+  document.getElementById("queued").textContent = s.queued?.queued ?? 0;
+  document.getElementById("submitted").textContent = s.queued?.submitted ?? 0;
+
+  const el = document.getElementById("status");
+  el.className = "status ok";
+  el.textContent = `live · block ${s.block} · ${new Date(s.ts * 1000).toLocaleTimeString("en-GB")}`;
+}
+
+// SSE first, polling as the fallback. A projector that stops updating is worse than a slow one.
+let fellBack = false;
+
+function poll() {
+  fellBack = true;
+  const loop = async () => {
+    try {
+      const r = await fetch("/api/state", { cache: "no-store" });
+      render(await r.json());
+    } catch (e) {
+      const el = document.getElementById("status");
+      el.className = "status warn";
+      el.textContent = "connection lost — retrying. " + (e.message || "");
+    }
+  };
+  loop();
+  setInterval(loop, 3000);
+}
+
+try {
+  const es = new EventSource("/api/events");
+  es.onmessage = (ev) => {
+    try { render(JSON.parse(ev.data)); } catch (e) { console.warn(e); }
+  };
+  es.onerror = () => {
+    es.close();
+    if (!fellBack) poll();
+  };
+} catch {
+  poll();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guild Protocol — Claim badge</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">The Guild Protocol</div>
+    <div class="chain">BADGE <b id="minted">—</b> / 250</div>
+  </header>
+
+  <h1>The Adventurer Badge</h1>
+  <p class="dim">
+    An ERC-721 whose artwork lives inside the contract. No IPFS, no hosting, no link that can rot.
+    The metadata records which route this room took.
+  </p>
+
+  <div class="grid two" style="margin:24px 0">
+    <div class="card">
+      <h2>Claim</h2>
+      <div class="kv"><span>Address</span><span id="addr">not connected</span></div>
+      <div class="kv"><span>Already claimed</span><span id="claimed">—</span></div>
+      <div class="kv"><span>Guild</span><span id="guildLabel">—</span></div>
+
+      <div class="actions">
+        <button id="connectBtn">Connect wallet</button>
+        <button id="sponsorBtn" disabled>Mint — the lab pays the gas</button>
+      </div>
+      <div class="actions">
+        <button id="selfBtn" class="ghost" disabled>Mint with my own gas</button>
+      </div>
+
+      <div class="status" id="status">connect a wallet. it is only used to read your address.</div>
+    </div>
+
+    <div class="card gold">
+      <h2>Your badge</h2>
+      <div id="art" style="min-height:280px;display:flex;align-items:center;justify-content:center">
+        <span class="dim small">nothing minted yet</span>
+      </div>
+      <p class="small dim" style="margin-bottom:0">
+        Decoded from <code>tokenURI()</code>. It came from the contract, not from a server.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Who pays, and why it matters</h2>
+    <p class="small dim" style="margin-top:0">
+      The first button is a <b>sponsor</b>: the lab's operator key sends the transaction and pays
+      the gas, on your behalf, into your address. You sign nothing and spend nothing.
+    </p>
+    <p class="small dim" style="margin-bottom:0">
+      That is what a paymaster is — a business decision dressed as a protocol feature. Someone is
+      paying for you, and someone is deciding when to stop. The second button is what it looks like
+      when the subsidy is gone.
+    </p>
+  </div>
+
+</div>
+
+<script type="module">
+import { CONFIG, CHAIN, publicClient, ABI, ROUTE } from "./lib.js";
+import { createWalletClient, custom } from "https://esm.sh/viem@2.21.45";
+
+const params = new URLSearchParams(location.search);
+const guildId = Number(params.get("g") || 0);
+
+document.getElementById("guildLabel").textContent = guildId
+  ? `G${String(guildId).padStart(2, "0")}`
+  : "not set (?g=7)";
+
+let account = null;
+let wallet = null;
+
+const setStatus = (msg, cls = "") => {
+  const el = document.getElementById("status");
+  el.className = "status " + cls;
+  el.textContent = msg;
+};
+
+async function ensureChain() {
+  const hex = "0x" + CONFIG.chainId.toString(16);
+  try {
+    await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hex }] });
+  } catch (e) {
+    if (e.code === 4902 || e.code === -32603) {
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [{
+          chainId: hex,
+          chainName: CONFIG.chainName,
+          nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+          rpcUrls: [CONFIG.rpcUrl],
+          blockExplorerUrls: [CONFIG.explorer],
+        }],
+      });
+    } else {
+      throw e;
+    }
+  }
+}
+
+async function refresh() {
+  // Read from our own API, not the public RPC: 200 browsers polling a shared endpoint is how
+  // you discover rate limits in front of an audience.
+  try {
+    const s = await fetch("/api/state", { cache: "no-store" }).then((r) => r.json());
+    document.getElementById("minted").textContent = s.badges ?? "—";
+  } catch { /* the badge count is decoration; never block the claim on it */ }
+
+  if (!account) return;
+  const done = await publicClient.readContract({
+    address: CONFIG.badge, abi: ABI.badge, functionName: "hasClaimed", args: [account],
+  });
+  document.getElementById("claimed").textContent = done ? "yes" : "no";
+  document.getElementById("sponsorBtn").disabled = done || !guildId;
+  document.getElementById("selfBtn").disabled = done || !guildId;
+  if (done) await showArt();
+}
+
+document.getElementById("connectBtn").onclick = async () => {
+  if (!window.ethereum) {
+    setStatus("no browser wallet found. A helper can mint from the console fallback.", "warn");
+    return;
+  }
+  try {
+    const [addr] = await window.ethereum.request({ method: "eth_requestAccounts" });
+    account = addr;
+    wallet = createWalletClient({ account, chain: CHAIN, transport: custom(window.ethereum) });
+    document.getElementById("addr").textContent = addr;
+    setStatus("connected. nothing was signed and nothing was sent.", "gold");
+    refresh();
+  } catch (e) {
+    setStatus("connection failed: " + (e.shortMessage || e.message), "warn");
+  }
+};
+
+document.getElementById("sponsorBtn").onclick = async () => {
+  try {
+    setStatus("asking the lab to sponsor your mint…", "gold");
+    const r = await fetch("/api/mint", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address: account, guild: guildId }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "sponsorship refused");
+
+    setStatus(`sponsored · ${j.txHash.slice(0, 18)}… · ${j.remaining} left in the allowance`, "ok");
+    await new Promise((res) => setTimeout(res, 2500));
+    refresh();
+  } catch (e) {
+    setStatus("sponsored mint failed: " + e.message, "warn");
+  }
+};
+
+document.getElementById("selfBtn").onclick = async () => {
+  try {
+    if (!wallet) return setStatus("connect a wallet first", "warn");
+    await ensureChain();
+    setStatus("your wallet, your gas…", "gold");
+    const hash = await wallet.writeContract({
+      address: CONFIG.badge, abi: ABI.badge, functionName: "claim", args: [guildId, ROUTE],
+    });
+    setStatus(`sent ${hash.slice(0, 18)}… waiting`, "gold");
+    await publicClient.waitForTransactionReceipt({ hash });
+    setStatus("minted. the image is inside the contract.", "ok");
+    refresh();
+  } catch (e) {
+    setStatus("mint failed: " + (e.shortMessage || e.message), "warn");
+  }
+};
+
+async function showArt() {
+  try {
+    const uri = await publicClient.readContract({
+      address: CONFIG.badge, abi: ABI.badge, functionName: "tokenURI", args: [1n],
+    });
+    const json = JSON.parse(atob(uri.split(",")[1]));
+    document.getElementById("art").innerHTML =
+      `<img alt="Adventurer badge" src="${json.image}" style="width:100%;max-width:320px;border:1px solid var(--line)">`;
+  } catch { /* token 1 may not be this wallet's; the claim flow still works */ }
+}
+
+refresh();
+setInterval(() => refresh().catch(() => {}), 15000);
+</script>
+</body>
+</html>
