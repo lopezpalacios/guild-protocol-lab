@@ -10,6 +10,7 @@ Testnet only. Every asset is valueless. Every key is disposable.
 - **Do this first:** [`TUTORIAL.md`](./TUTORIAL.md) — zero to a running lab in ~25 minutes.
 - **On the night:** [`GUIDE.md`](./GUIDE.md) — every surface, minute by minute, and troubleshooting.
 - **On stage:** [`PRESENTATION.md`](./PRESENTATION.md) + `web/deck.html` — 15 slides with speaker notes.
+- **At the podium:** [`RUNBOOK.pptx`](./RUNBOOK.pptx) — 21 slides, one per timestamp: what to click, on which screen, and what you should see.
 - **The argument:** [`LAB-PACK.md`](./LAB-PACK.md) — learning outcomes, run of show, risk register,
   the committee response appendix.
 - **Contracts:** `contracts/` — Foundry, five contracts, 37 tests including the 200-person load simulation.
